@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
 #include <ncurses.h>
 /********************************** SNAKE *************************************
  * NOTES:
@@ -13,8 +14,8 @@
  *                4 - timeout occurred
  *
  ******************************************************************************/
-#define MAX_LENGTH  (64)
-#define TIMEOUT     (1)
+#define MAX_LENGTH  64
+#define TIMEOUT     1
 
 /* main data structures */
 struct unit 
@@ -22,7 +23,7 @@ struct unit
   char symbol;
   int  x;
   int  y;
-}
+};
 typedef struct unit thegoodie;
 struct unit snake[MAX_LENGTH];
 
@@ -30,7 +31,7 @@ struct unit snake[MAX_LENGTH];
 void setup( void );
 int readInput( void );
 void advanceSnake( int direction );
-void refresh( void );
+void refreshScreen( void );
 
 /* main */
 int main( int argc, const char *argv[] )
@@ -40,7 +41,7 @@ int main( int argc, const char *argv[] )
   {
     int directionPressed = readInput(); 
     advanceSnake( directionPressed );
-    refresh();
+    refreshScreen();
   }
   return 0;
 }
@@ -92,7 +93,7 @@ void advanceSnake( int direction )
  * 
  * Returns: void
  ******************************************************************************/
-void refresh( void )
+void refreshScreen( void )
 {
   /* TODO */
 }
