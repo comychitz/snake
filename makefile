@@ -2,9 +2,9 @@ GCC=gcc
 CFLAGS=-Wall
 LFLAGS=-lncurses
 
-all: snake
+all: clean snake
 
-run: snake
+run: clean snake
 	./snake
 
 snake:

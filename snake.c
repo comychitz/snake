@@ -3,11 +3,12 @@
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <ncurses.h>
 /********************************** SNAKE *************************************
  * NOTES:
  * -----
- * int direction: 0 - up
+ * int direction: 0 - up               
  *                1 - right
  *                2 - down
  *                3 - left
@@ -15,11 +16,11 @@
  *
  ******************************************************************************/
 #define MAX_LENGTH  64
-#define TIMEOUT     500
+#define TIMEOUT     100
 
 #define TAIL_CHAR               'o'
-#define HEAD_CHAR               '>' 
-#define GOODIE_CHAR             '!'
+#define HEAD_CHAR               '@' 
+#define GOODIE_CHAR             'X'
 #define EMPTY_CHAR              ' '
 #define VERTICAL_BORDER_CHAR    '#'
 #define HORIZONTAL_BORDER_CHAR  '#'
@@ -88,8 +89,11 @@ void setup( void )
   initscr();
   cbreak();
   noecho(); // turns off echoing characters read by getch()
+  curs_set(0); // hide the cursor
   MAX_ROW = LINES;
   MAX_COL = COLS;
+
+  srand(time(NULL)); // seed for random number generator
   
   /* draw a cool border */
   int i;
@@ -145,13 +149,22 @@ void setup( void )
   PREV_DIRECTION = 1;
   mvaddch( 10, 5, HEAD_CHAR );
   mvaddch( 10, 4, TAIL_CHAR );
+  mvaddch( 10, 3, TAIL_CHAR );
+  mvaddch( 10, 2, TAIL_CHAR );
   theSnake.body[0].symbol = HEAD_CHAR;
   theSnake.body[0].x = 5;
   theSnake.body[0].y = 10;
   theSnake.body[1].symbol = TAIL_CHAR;
   theSnake.body[1].x = 4;
   theSnake.body[1].y = 10;
-  theSnake.length = 2;
+  theSnake.body[1].symbol = TAIL_CHAR;
+  theSnake.body[2].x = 3;
+  theSnake.body[2].y = 10;
+  theSnake.body[3].symbol = TAIL_CHAR;
+  theSnake.body[3].x = 2;
+  theSnake.body[3].y = 10;
+
+  theSnake.length = 4;
   
   /* place the goodie somewhere */
   thegoodie.symbol = GOODIE_CHAR;
@@ -172,7 +185,9 @@ void setup( void )
 int readInput( void )
 {
   int direction;
-
+  bool flag = true;
+  while( flag )
+  {
   int pressedKey = getch(); 
   /* TODO - * make sure the timeout has been waiting before continueing */
   if( PREV_KEY == pressedKey )
@@ -185,30 +200,34 @@ int readInput( void )
   }
 
   char temp[128];
-  sprintf( temp, "echo %d > test", pressedKey );
+  sprintf( temp, "echo %d >> keysPressedLog", pressedKey );
   system( temp );
-  exit(-1);
-  
+
   switch( pressedKey )
   {
-    case KEY_UP:
+    case 65: // up
       direction = 0;
+      flag = false;
       break;
-    case KEY_RIGHT:
+    case 67: // right
       direction = 1;
+      flag = false;
       break;
-    case KEY_DOWN:
+    case 66: // down
       direction = 2;
+      flag = false;
       break;
-    case KEY_LEFT:
+    case 68: // left
       direction = 3;
+      flag = false;
       break;
-    case ERR:
+    case ERR: // -1
       direction = 4;
+      flag = false;
       break;
     default:
-      direction = 4;
       break;
+  }
   }
 
   return direction;
@@ -223,7 +242,7 @@ int readInput( void )
  ******************************************************************************/
 void advanceSnake( int direction )
 {
-  if( direction == 4 )
+  if( direction == 4 || direction == -1 )
   { // continue the same direction as we are going
     direction = PREV_DIRECTION;
   }
@@ -232,45 +251,50 @@ void advanceSnake( int direction )
     PREV_DIRECTION = direction;
   }
 
-  /* move the head to the corresponding location */
-  struct unit lastHead = theSnake.body[0];
-  moveHead( direction );
-
-  /* fill where the head was with a tail char */
-  mvaddch( lastHead.y, lastHead.x, TAIL_CHAR );
-
-  /* update the contents of theSnake data structure */
-  struct unit lastTail = theSnake.body[theSnake.length-1];
+  /* clear the snake */
   int i;
-  for( i = 1; i < theSnake.length; i++) 
+  for( i = 0; i < theSnake.length; i++) 
   {
-    if( i == 1 )
-    {
-      theSnake.body[i].x = lastHead.x;
-      theSnake.body[i].y = lastHead.y;
-    }
-    else if( i == theSnake.length-2 )
-    {
-      theSnake.body[i].x = theSnake.body[i+1].x;
-      theSnake.body[i].y = theSnake.body[i+1].y;
-      break;
-    }
-  }
-
-  if( !gotGoodie )
-  { /* erase the last tail */
-    mvaddch( lastTail.y, 
-             lastTail.x, 
+    mvaddch( theSnake.body[i].y,
+             theSnake.body[i].x,
              EMPTY_CHAR );
   }
-  else 
+
+  /* move the head to the corresponding location */
+  //struct unit lastHead = theSnake.body[0];
+  struct unit lastTail = theSnake.body[theSnake.length-1];
+  
+  struct unit tempSnake[MAX_LENGTH];
+
+  /* shift the rest of the snake */
+  for( i = 0; i < theSnake.length; i++) 
+  {
+    tempSnake[i] = theSnake.body[i];
+  }
+  for( i = 1; i < theSnake.length; i++) 
+  {
+    theSnake.body[i] = tempSnake[i-1];
+  }
+
+  moveHead( direction );
+
+  /* draw the new snake */
+  for( i = 1; i < theSnake.length; i++) 
+  {
+    mvaddch( theSnake.body[i].y,
+             theSnake.body[i].x,
+             TAIL_CHAR );
+  }
+
+
+  if( gotGoodie )
   { /* append another tail to the snake */
     theSnake.length++;
     theSnake.body[theSnake.length-1] = lastTail;
+    mvaddch( lastTail.y, lastTail.x, lastTail.symbol);
     placeGoodie(); // place a new goodie
     gotGoodie = false;
   }
-
 }
 
 /*******************************************************************************
@@ -305,7 +329,19 @@ void advanceSnake( int direction )
   }
   mvaddch( theSnake.body[0].y, theSnake.body[0].x, theSnake.body[0].symbol );
 
+  /* check if we hit a goodie */
+  if( theSnake.body[0].x == thegoodie.x &&
+      theSnake.body[0].y == thegoodie.y )
+  {
+    gotGoodie = true;
+  }
+
+  char temp[128];
+  sprintf( temp, "echo \"%d,%d\" >> headLocation", theSnake.body[0].x, theSnake.body[0].y );
+  system( temp );
+
   /* TODO - check we didn't hit a wall or ourself */
+
 }
 
 /*******************************************************************************
@@ -329,9 +365,37 @@ void teardown( void )
  ******************************************************************************/
 void placeGoodie( void )
 {
-  /* TODO */
-  // don't forget to erase where the goodie is before drawing new one
-  // and make sure its not somewhere the snake is currently
+  // erase the old goodie
+  if( thegoodie.x != -1 || thegoodie.y != -1 )
+  {
+    mvaddch( thegoodie.y, thegoodie.x, EMPTY_CHAR );
+  }
+
+  bool flag = true;
+  int newX, newY;
+  while( flag )
+  {
+    newX = rand() % (MAX_COL-2) + 1;
+    newY = rand() % (MAX_ROW-2) + 1;
+    
+    int i;
+    flag = false;
+    for( i = 0; i < theSnake.length; i++) 
+    {
+      if( theSnake.body[i].x == newX  ||
+          theSnake.body[i].y == newY )
+      {
+         flag = true;
+         break;
+      }
+    }
+  }
+  thegoodie.x = newX;
+  thegoodie.y = newY;
+  char temp[128];
+  sprintf( temp, "echo \"%d,%d\" >> goodieLog", newX, newY );
+  system( temp );
+  mvaddch( newY, newX, GOODIE_CHAR );
 }
  
 /*******************************************************************************
