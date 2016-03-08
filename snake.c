@@ -26,6 +26,7 @@
 #define HORIZONTAL_BORDER_CHAR  '#'
 
 /* globals */
+short score = 0;
 short MAX_ROW;
 short MAX_COL;
 int PREV_KEY = 0;
@@ -50,21 +51,29 @@ struct unit thegoodie;
 struct snake theSnake;
 
 /* function declarations */
+void presetup( void );
 void setup( void );
 int readInput( void );
 void advanceSnake( int direction );
 void moveHead ( int direction );
 void placeGoodie( void );
 void gameOverSeq( void );
+void drawBorder( char, char, char, char );
 void teardown( void );
 
 /* main */
 int main( int argc, const char *argv[] )
 {
+  presetup();
   setup();
+
   while( true )
   {
     int directionPressed = readInput(); 
+    if( directionPressed == -2 ) // quit
+    {
+      break;
+    } 
     advanceSnake( directionPressed );
     refresh();
     if( gameOver )
@@ -77,13 +86,14 @@ int main( int argc, const char *argv[] )
 }
 
 /*******************************************************************************
- * Description: setup function that prepares the windows, gets data ready
+ * Description: the setup function that doesn't actually setup the game, but
+ * does the ncurses window setup, other system-related calls
  * 
- * Inputs: void
+ * Inputs: 
  * 
- * Returns: void
+ * Returns: 
  ******************************************************************************/
-void setup( void )
+void presetup( void )
 {
   /* prepare the screen */
   initscr();
@@ -92,28 +102,14 @@ void setup( void )
   curs_set(0); // hide the cursor
   MAX_ROW = LINES;
   MAX_COL = COLS;
-
   srand(time(NULL)); // seed for random number generator
-  
-  /* draw a cool border */
-  int i;
-  for( i=0; i<MAX_COL; i++)
-  {
-    if( i % 2 == 0 )
-      mvaddch( 0, i, HORIZONTAL_BORDER_CHAR );
-    else
-      mvaddch( 0, i, ' ' );
-    if( i % 2 == 0 )
-      mvaddch( MAX_ROW-1, i, HORIZONTAL_BORDER_CHAR );
-    else
-      mvaddch( MAX_ROW-1, i, ' ' );
-  }
-  for( i=1; i<MAX_ROW-1; i++ )
-  {
-    mvaddch( i, 0, VERTICAL_BORDER_CHAR );
-    mvaddch( i, MAX_COL-1, VERTICAL_BORDER_CHAR );
-  }
-  
+
+  /* clear screen */
+  clear();
+
+  /* draw border */
+  drawBorder( '#', '#', '#', '#' ); 
+
   /* write a message that says press something to start */
   char welcomeMesg1[] = "Welcome to Snake!";
   char welcomeMesg2[] = "Press any key to begin playing";
@@ -122,25 +118,28 @@ void setup( void )
 
   /* wait for something to be pressed, then return */
   getch();
+}
+ 
+
+/*******************************************************************************
+ * Description: setup function that prepares the windows, gets data ready
+ * 
+ * Inputs: void
+ * 
+ * Returns: void
+ ******************************************************************************/
+void setup( void )
+{ 
+  /* clear screen */
   clear();
 
-  /* draw a cool border */
-  for( i=0; i<MAX_COL; i++)
-  {
-    if( i % 2 == 0 )
-      mvaddch( 0, i, HORIZONTAL_BORDER_CHAR );
-    else
-      mvaddch( 0, i, ' ' );
-    if( i % 2 == 0 )
-      mvaddch( MAX_ROW-1, i, HORIZONTAL_BORDER_CHAR );
-    else
-      mvaddch( MAX_ROW-1, i, ' ' );
-  }
-  for( i=1; i<MAX_ROW-1; i++ )
-  {
-    mvaddch( i, 0, VERTICAL_BORDER_CHAR );
-    mvaddch( i, MAX_COL-1, VERTICAL_BORDER_CHAR );
-  }
+  /* draw the border for the game */
+  drawBorder( 'v', '<', '^', '>' );
+
+  /* put the score and the instructions at the bottom */
+  mvprintw( MAX_ROW-1, 0, "Score: %d", score );
+  char temp[] = "[P]ause [Q]uit [R]estart";
+  mvprintw( MAX_ROW-1, MAX_COL-strlen(temp)-1, "%s", temp );
 
   timeout( TIMEOUT ); // sets the timeout for waiting for keyboard input
 
@@ -185,49 +184,72 @@ void setup( void )
 int readInput( void )
 {
   int direction;
-  bool flag = true;
-  while( flag )
+  bool flag = true, flag2 = false;
+  while( flag || flag2 )
   {
-  int pressedKey = getch(); 
-  /* TODO - * make sure the timeout has been waiting before continueing */
-  if( PREV_KEY == pressedKey )
-  {
-    return PREV_DIRECTION;
-  }
-  else 
-  {
-    PREV_KEY = pressedKey;
-  }
+    int pressedKey = getch(); 
 
-  char temp[128];
-  sprintf( temp, "echo %d >> keysPressedLog", pressedKey );
-  system( temp );
+    if( PREV_KEY == pressedKey &&
+        (pressedKey == 65      || 
+        pressedKey == 66       || 
+        pressedKey == 67       ||
+        pressedKey == 68)       )
+    {
+      return PREV_DIRECTION;
+    }
+    else
+    {
+      PREV_KEY = pressedKey;
+    }
 
-  switch( pressedKey )
-  {
-    case 65: // up
-      direction = 0;
-      flag = false;
-      break;
-    case 67: // right
-      direction = 1;
-      flag = false;
-      break;
-    case 66: // down
-      direction = 2;
-      flag = false;
-      break;
-    case 68: // left
-      direction = 3;
-      flag = false;
-      break;
-    case ERR: // -1
-      direction = 4;
-      flag = false;
-      break;
-    default:
-      break;
-  }
+    switch( pressedKey )
+    {
+      case 65: // up
+        direction = 0;
+        flag = false;
+        break;
+      case 67: // right
+        direction = 1;
+        flag = false;
+        break;
+      case 66: // down
+        direction = 2;
+        flag = false;
+        break;
+      case 68: // left
+        direction = 3;
+        flag = false;
+        break;
+      case 112: // [p]ause
+        if( !flag2 ) {
+          timeout( 900000 ); // after 15 minutes of pause, just go
+          mvprintw( MAX_ROW-1, (MAX_COL-7)/2, "Paused!" );
+          flag2 = true;
+        } else {
+          timeout( TIMEOUT );
+          mvprintw( MAX_ROW-1, (MAX_COL-7)/2, "       " );
+          flag2 = false;
+          return PREV_DIRECTION;
+        }
+        break;
+      case 113: // [q]uit
+        direction = -2;
+        return -2;
+        break;
+      case 114: // [r]estart
+        setup();
+        return 4;
+        break;
+      case ERR: // -1
+        direction = 4;
+        flag = false;
+        break;
+      default:
+        break;
+    }
+    char temp[128];
+    sprintf( temp, "echo %d >> keysPressed", pressedKey );
+    system( temp );
   }
 
   return direction;
@@ -278,14 +300,14 @@ void advanceSnake( int direction )
 
   moveHead( direction );
 
-  /* draw the new snake */
-  for( i = 1; i < theSnake.length; i++) 
+  /* draw the new snake. draw it backwards so the head is always on top */
+  for( i = 1; i < theSnake.length; i++ )
   {
     mvaddch( theSnake.body[i].y,
              theSnake.body[i].x,
              TAIL_CHAR );
   }
-
+  mvaddch( theSnake.body[0].y, theSnake.body[0].x, theSnake.body[0].symbol );
 
   if( gotGoodie )
   { /* append another tail to the snake */
@@ -293,6 +315,8 @@ void advanceSnake( int direction )
     theSnake.body[theSnake.length-1] = lastTail;
     mvaddch( lastTail.y, lastTail.x, lastTail.symbol);
     placeGoodie(); // place a new goodie
+    score++;
+    mvprintw( MAX_ROW-1, 0, "Score: %d", score );
     gotGoodie = false;
   }
 }
@@ -327,7 +351,6 @@ void advanceSnake( int direction )
     default:
       break;
   }
-  mvaddch( theSnake.body[0].y, theSnake.body[0].x, theSnake.body[0].symbol );
 
   /* check if we hit a goodie */
   if( theSnake.body[0].x == thegoodie.x &&
@@ -336,12 +359,25 @@ void advanceSnake( int direction )
     gotGoodie = true;
   }
 
-  char temp[128];
-  sprintf( temp, "echo \"%d,%d\" >> headLocation", theSnake.body[0].x, theSnake.body[0].y );
-  system( temp );
-
-  /* TODO - check we didn't hit a wall or ourself */
-
+  /*  check we didn't hit a wall or ourself */
+  if( theSnake.body[0].x == 0          ||
+      theSnake.body[0].x == MAX_COL-1  ||
+      theSnake.body[0].y == 0          ||
+      theSnake.body[0].y == MAX_ROW-2   ) 
+  {
+    gameOver = true;
+    return;
+  }
+  int i;
+  for( i = 1; i < theSnake.length; i++) 
+  {
+    if( theSnake.body[i].x == theSnake.body[0].x &&
+        theSnake.body[i].y == theSnake.body[0].y )
+    {
+      gameOver =true;
+      break;
+    }
+  }
 }
 
 /*******************************************************************************
@@ -376,7 +412,7 @@ void placeGoodie( void )
   while( flag )
   {
     newX = rand() % (MAX_COL-2) + 1;
-    newY = rand() % (MAX_ROW-2) + 1;
+    newY = rand() % (MAX_ROW-3) + 1;
     
     int i;
     flag = false;
@@ -392,9 +428,6 @@ void placeGoodie( void )
   }
   thegoodie.x = newX;
   thegoodie.y = newY;
-  char temp[128];
-  sprintf( temp, "echo \"%d,%d\" >> goodieLog", newX, newY );
-  system( temp );
   mvaddch( newY, newX, GOODIE_CHAR );
 }
  
@@ -407,5 +440,43 @@ void placeGoodie( void )
  ******************************************************************************/
  void gameOverSeq( void )
 {
-  /* TODO */
+  char gameOverMsg[] = "Game Over!";
+  char gameOverMsg2[] = "Press any key to restart";
+  mvprintw( MAX_ROW/2 - 5, (MAX_COL-strlen(gameOverMsg))/2, "%s", gameOverMsg );
+  mvprintw( MAX_ROW/2 - 3, (MAX_COL-strlen(gameOverMsg2))/2, "%s", gameOverMsg2 );
+
+  timeout(10000); // 10 seconds or it will restart itself
+  int pressedKey = getch();
+  setup();
+  gameOver = false;
 }
+
+/*******************************************************************************
+ * Description: draws border at edge of screen
+ * 
+ * Inputs: 
+ * 
+ * Returns: void
+ ******************************************************************************/
+void drawBorder( char uchar, char rchar, char dchar, char lchar)
+{
+  /* draw a cool border */
+  int i;
+  for( i=0; i<MAX_COL; i++)
+  {
+    if( i % 2 == 0 )
+      mvaddch( 0, i, uchar );
+    else
+      mvaddch( 0, i, ' ' );
+    if( i % 2 == 0 )
+      mvaddch( MAX_ROW-2, i, dchar );
+    else
+      mvaddch( MAX_ROW-2, i, ' ' );
+  }
+  for( i=1; i<MAX_ROW-2; i++ )
+  {
+    mvaddch( i, 0, lchar );
+    mvaddch( i, MAX_COL-1, rchar );
+  }
+}
+ 
