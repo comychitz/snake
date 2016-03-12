@@ -557,15 +557,15 @@ void showHighScores( void )
   if( highscores[0] > 0 || highscores[1] > 0 || highscores[2] > 0 )
   {
     char title[] = "High Scores";
-    mvprintw( MAX_ROW/2 + 10, (MAX_COL-(strlen(title)))/2, "%s", title );
+    mvprintw( MAX_ROW/2 + 5, (MAX_COL-(strlen(title)))/2, "%s", title );
     int i;
     for( i = 0; i < 3; i++ )
     {
       if( highscores[i] > 0 )
       {
         char score[32];
-        sprintf( score, "%d %d", i+1, highscores[i] );
-        mvprintw( MAX_ROW/2 + 10 + (i+1)*2, (MAX_COL-(strlen(score)))/2, "%s", score );
+        sprintf( score, "%d. %d", i+1, highscores[i] );
+        mvprintw( MAX_ROW/2 + 5 + (i+1)*2, (MAX_COL-(sizeof(score)))/2 + 12, "%s", score );
       }
     }
   }
