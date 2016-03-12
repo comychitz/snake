@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <ncurses.h>
+#include <errno.h>
 /********************************** SNAKE *************************************
  * NOTES:
  * -----
@@ -15,7 +16,7 @@
  *                4 - timeout occurred
  *
  ******************************************************************************/
-#define MAX_LENGTH  64
+#define MAX_LENGTH  2048
 #define TIMEOUT     100
 
 #define TAIL_CHAR               'o'
@@ -25,6 +26,8 @@
 #define VERTICAL_BORDER_CHAR    '#'
 #define HORIZONTAL_BORDER_CHAR  '#'
 
+#define HIGHSCORES_FILENAME     "/Users/true/snake/highscores"
+
 /* globals */
 short score = 0;
 short MAX_ROW;
@@ -33,6 +36,7 @@ int PREV_KEY = 0;
 int PREV_DIRECTION = 0;
 bool gameOver = false;
 bool gotGoodie = false;
+int highscores[3];
 
 /* main data structures */
 struct unit 
@@ -60,6 +64,9 @@ void placeGoodie( void );
 void gameOverSeq( void );
 void drawBorder( char, char, char, char );
 void teardown( void );
+void getHighscores( void );
+void showHighScores( void );
+void saveHighScores( void );
 
 /* main */
 int main( int argc, const char *argv[] )
@@ -78,6 +85,7 @@ int main( int argc, const char *argv[] )
     refresh();
     if( gameOver )
     {
+      saveHighScores();
       gameOverSeq();
     }
   }
@@ -95,6 +103,8 @@ int main( int argc, const char *argv[] )
  ******************************************************************************/
 void presetup( void )
 {
+  getHighscores();
+
   /* prepare the screen */
   initscr();
   cbreak();
@@ -103,6 +113,14 @@ void presetup( void )
   MAX_ROW = LINES;
   MAX_COL = COLS;
   srand(time(NULL)); // seed for random number generator
+
+  /* check for size of terminal window bigger than 30 by 30 */
+  if( MAX_ROW <= 30 || MAX_COL <= 30 )
+  {
+    teardown();
+    printf( "your terminal window is too small! try again.\n" );
+    exit(-1);
+  }
 
   /* clear screen */
   clear();
@@ -115,6 +133,8 @@ void presetup( void )
   char welcomeMesg2[] = "Press any key to begin playing";
   mvprintw( MAX_ROW/2 - 5, (MAX_COL-strlen(welcomeMesg1))/2, "%s", welcomeMesg1 );
   mvprintw( MAX_ROW/2 - 2, (MAX_COL-strlen(welcomeMesg2))/2, "%s", welcomeMesg2 );
+
+  showHighScores();
 
   /* wait for something to be pressed, then return */
   getch();
@@ -170,6 +190,8 @@ void setup( void )
   thegoodie.x = -1;
   thegoodie.y = -1; 
   placeGoodie();
+
+  score = 0;
 
   refresh();
 }
@@ -247,9 +269,11 @@ int readInput( void )
       default:
         break;
     }
+    /*
     char temp[128];
     sprintf( temp, "echo %d >> keysPressed", pressedKey );
     system( temp );
+    */
   }
 
   return direction;
@@ -283,7 +307,6 @@ void advanceSnake( int direction )
   }
 
   /* move the head to the corresponding location */
-  //struct unit lastHead = theSnake.body[0];
   struct unit lastTail = theSnake.body[theSnake.length-1];
   
   struct unit tempSnake[MAX_LENGTH];
@@ -389,6 +412,7 @@ void advanceSnake( int direction )
  ******************************************************************************/
 void teardown( void )
 {
+  saveHighScores();
   endwin();
 }
  
@@ -446,7 +470,7 @@ void placeGoodie( void )
   mvprintw( MAX_ROW/2 - 3, (MAX_COL-strlen(gameOverMsg2))/2, "%s", gameOverMsg2 );
 
   timeout(10000); // 10 seconds or it will restart itself
-  int pressedKey = getch();
+  getch();
   setup();
   gameOver = false;
 }
@@ -480,3 +504,111 @@ void drawBorder( char uchar, char rchar, char dchar, char lchar)
   }
 }
  
+/*******************************************************************************
+ * Description: get the high score from the high scores file, if file isn't 
+ * there this function will create it
+ * 
+ * Inputs: void
+ * 
+ * Returns: void 
+ ******************************************************************************/
+void getHighscores( void )
+{
+  char *line = NULL;
+  int count = 0;
+  size_t len = 0;
+  ssize_t read;
+
+  FILE *f = fopen( HIGHSCORES_FILENAME, "r+" ); 
+
+  if( !f )
+  {
+    printf( "Failed to open file %s: %s (%d)", 
+            HIGHSCORES_FILENAME, 
+            strerror(errno), 
+            errno );
+    return;
+  }
+
+  while( (read = getline( &line, &len, f)) != -1 )
+  {
+    highscores[count] = atoi( line );
+    count++;
+  }
+
+  int i;
+  for( i = count; i < 3; i++) 
+  {
+    highscores[i] = 0;
+  }
+
+  fclose( f );
+}
+
+/*******************************************************************************
+ * Description: display high scores on the welcome screen
+ * 
+ * Inputs: void
+ * 
+ * Returns: void
+ ******************************************************************************/
+void showHighScores( void )
+{
+  if( highscores[0] > 0 || highscores[1] > 0 || highscores[2] > 0 )
+  {
+    char title[] = "High Scores";
+    mvprintw( MAX_ROW/2 + 10, (MAX_COL-(strlen(title)))/2, "%s", title );
+    int i;
+    for( i = 0; i < 3; i++ )
+    {
+      if( highscores[i] > 0 )
+      {
+        char score[32];
+        sprintf( score, "%d %d", i+1, highscores[i] );
+        mvprintw( MAX_ROW/2 + 10 + (i+1)*2, (MAX_COL-(strlen(score)))/2, "%s", score );
+      }
+    }
+  }
+}
+
+/*******************************************************************************
+ * Description: saves high scores to file
+ * 
+ * Inputs: void
+ * 
+ * Returns: void
+ ******************************************************************************/
+void saveHighScores( void )
+{
+  int i;
+  for( i=0; i<3; i++ )
+  {
+    if( highscores[i] < score )
+    {
+      int j;
+      for( j=2; j>i; j-- )
+      {
+        highscores[j] = highscores[j-1];
+      }
+      highscores[i] = score;
+      break;
+    }
+  } 
+
+  FILE *f = fopen( HIGHSCORES_FILENAME, "w+" );
+  if( !f )
+  {
+    printf( "Failed to open file %s: %s (%d)", 
+            HIGHSCORES_FILENAME,
+            strerror(errno),
+            errno );
+    return;
+  }
+  
+  for( i = 0; i < 3; i++) 
+  {
+    fprintf( f, "%d\n", highscores[i] );
+  }
+
+  fclose( f );
+}
