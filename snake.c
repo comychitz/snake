@@ -157,6 +157,7 @@ void setup( void )
   drawBorder( 'v', '<', '^', '>' );
 
   /* put the score and the instructions at the bottom */
+  score = 0;
   mvprintw( MAX_ROW-1, 0, "Score: %d", score );
   char temp[] = "[P]ause [Q]uit [R]estart";
   mvprintw( MAX_ROW-1, MAX_COL-strlen(temp)-1, "%s", temp );
@@ -190,8 +191,6 @@ void setup( void )
   thegoodie.x = -1;
   thegoodie.y = -1; 
   placeGoodie();
-
-  score = 0;
 
   refresh();
 }
